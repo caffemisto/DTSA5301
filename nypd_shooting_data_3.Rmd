@@ -1,0 +1,196 @@
+---
+title: "NYPD Shooting Data"
+output: html_document
+date: "2025-03-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Introduction**
+
+For this project, we are analyzing NYPD Shooting Incident dataset, which is available via Open Data. We will first clean and reformat the data, then we will analyze it via visuals and models. Using this data, we will hopefully come to interesting conclusions, but we will also acknowledge the limitations, including the biases present.
+
+**Data Import**
+
+We will start by importing the necessary libraries.
+
+```{r libraries}
+#import in necessary libraries for data analysis
+library(tidyverse)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(scales)
+```
+
+Next, we will read in the online csv and store it in a data frame.
+
+```{r read_in}
+#store the URL for our data as a variable
+data_url <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+
+#read data in as an array
+crime_data <-read_csv(data_url)
+```
+
+Now that the data is imported, we will take a look at the structure of the frame:
+
+```{r}
+#view the data in the data frame.
+crime_data
+```
+
+There are several data columns that do not appear interesting at first glance. We will remove them for the sake of clarity.
+
+```{r}
+#remove columns containing data we are not interested in
+lean_crime_data <- crime_data %>% select(-Lon_Lat, -Longitude, -Latitude, Y_COORD_CD, -X_COORD_CD, -Y_COORD_CD, -LOCATION_DESC, -LOC_CLASSFCTN_DESC, -JURISDICTION_CODE, -LOC_OF_OCCUR_DESC)
+```
+
+There are also some columns that are unclearly named. We will rename them for the sake of clarity and consistency.
+
+```{r}
+#rename columns to be clear and consistent.
+lean_crime_data <- lean_crime_data %>%
+ rename(
+   BOROUGH = "BORO",
+   VICTIM_AGE_GROUP = "VIC_AGE_GROUP",
+   VICTIM_SEX = "VIC_SEX",
+   VICTIM_RACE = "VIC_RACE"
+ )
+colnames(lean_crime_data)
+```
+There is one column that would be better suited to be formatted as a date. We will reformat it as such.
+
+```{r}
+#change column data type to date
+lean_crime_data<- lean_crime_data %>%
+  mutate(OCCUR_DATE = mdy(OCCUR_DATE))
+```
+
+There are also several columns that would be better suited formatted as factors. We will reformat them as such as well.
+
+```{r}
+#change column data types to factor
+lean_crime_data$BOROUGH <- factor(lean_crime_data$BOROUGH)
+lean_crime_data$PRECINCT <- factor(lean_crime_data$PRECINCT)
+lean_crime_data$PERP_AGE_GROUP <- factor(lean_crime_data$PERP_AGE_GROUP)
+lean_crime_data$PERP_SEX <- factor(lean_crime_data$PERP_SEX)
+lean_crime_data$PERP_RACE <- factor(lean_crime_data$PERP_RACE)
+lean_crime_data$VICTIM_AGE_GROUP <- factor(lean_crime_data$VICTIM_AGE_GROUP)
+lean_crime_data$VICTIM_SEX <- factor(lean_crime_data$VICTIM_SEX)
+lean_crime_data$VICTIM_RACE <- factor(lean_crime_data$VICTIM_RACE)
+```
+
+**Visualizations**
+
+Within the entire data set, I am interested in seeing the breakdown of ages of victims. I will make a visualization to see this.
+
+```{r}
+#create a list omitting age groups that are not informative, such as UNKNOWN
+ages <- c("<18","18-24", "25-44", "45-64", "65+")
+
+#create a visualization
+lean_crime_data %>% dplyr::filter(VICTIM_AGE_GROUP %in% ages) %>%
+  ggplot(aes(x = VICTIM_AGE_GROUP)) +
+  geom_bar() +
+  labs(x = "Age of Victim",
+       y = "Shootings",
+       title = "Shooting Incidents by Age of Victim")
+```
+The above visualization shows a modal distribution with 25-44 being the most common age range. Now we will look at a distribution for shootings based on the age of the perpetrator.
+
+```{r}
+#create a visualization
+lean_crime_data %>% dplyr::filter(PERP_AGE_GROUP %in% ages) %>%
+  ggplot(aes(x = PERP_AGE_GROUP)) +
+  geom_bar() +
+  labs(x = "Age of Perpetrator",
+       y = "Shootings",
+       title = "Shooting Incidents by Age of Perpetrator")
+```
+The distribution here is also modal, however in this case, the highest age range is 18-24. It appears that for shootings within NYC, the age range of the perpetrator skews lower than the age of the victim.
+
+Now we will explore visualizations of the sexes of victims and perpetrators.
+
+
+```{r}
+#limit the selections to "M" and "F"
+sexes <- c("F", "M")
+#create a visualization
+lean_crime_data %>% dplyr::filter(VICTIM_SEX %in% sexes) %>%
+  ggplot(aes(x = VICTIM_SEX)) +
+  geom_bar() +
+  labs(x = "Sex of Victim",
+       y = "Shootings",
+       title = "Shooting Incidents by Sex of Victim")
+```
+Overwhelmingly, the vicitims of shootings within NYC appear to be disprortionately male.
+
+
+```{r}
+#create a visualization
+lean_crime_data %>% dplyr::filter(PERP_SEX %in% sexes) %>%
+  ggplot(aes(x = PERP_SEX)) +
+  geom_bar() +
+  labs(x = "Sex of Perpetrator",
+       y = "Shootings",
+       title = "Shooting Incidents by Sex of Perpetrator")
+```
+The same appears to be true with regard to the perpetrator. Perpetrators of shootings within this dataset appear to be overwhelmingly male.
+
+Now let's look at the race of the victims and perpetrators.
+
+
+```{r}
+#omit noisy data in the race field such as "UNKNOWN"
+races <- c("WHITE HISPANIC", "WHITE", "BLACK HISPANIC", "BLACK", "ASIAN / PACIFIC ISLANDER", "AMERICAN INDIAN/ALASKAN NATIVE")
+#create a visualization
+lean_crime_data %>% dplyr::filter(VICTIM_RACE %in% races) %>%
+  ggplot(aes(x = VICTIM_RACE)) +
+  geom_bar() +
+  coord_flip() +
+  labs(x = "Race of Victim",
+       y = "Shootings",
+       title = "Shooting Incidents by Race of Victim")
+```
+The most common victim race by far is Black, however there appear to be significant numbers of White Hispanic and Black Hispanic victims as well.
+
+
+```{r}
+#create a visualization
+lean_crime_data %>% dplyr::filter(PERP_RACE %in% races) %>%
+  ggplot(aes(x = PERP_RACE)) +
+  geom_bar() +
+  coord_flip() +
+  labs(x = "Race of Perpetrator",
+       y = "Shootings",
+       title = "Shooting Incidents by Race of Perpetrator")
+```
+The same can be said about the perpetrators of these shootings. The most common race for perpetrators of shootings as observed by the NYPD is Black, though there are significant numbers of Black Hispanic and White Hispanic perpetrators as well. Please note these numbers are not normalized by population. For instance the low number of Alaskan Native perpetrators may be related to a low population of that group living in New York.
+
+**Modeling**
+
+Until now, we have dealt with shooting as a whole within this data set. Now I am interested in seeing data around shootings that were specifically fatal. In the dataset, this is specifically captured by the STATISTICAL_MURDER_FLAG variable. I am going to create a model to observe what factors appear to affect that.
+
+```{r}
+model <- glm(STATISTICAL_MURDER_FLAG ~ PERP_AGE_GROUP +  PERP_RACE + PERP_SEX, data = lean_crime_data)
+
+summary(model)
+```
+From this data, it appears that the age of the perpetrator is a factor that affects the likelihood of whether a shooting is fatal. Shootings by perps less than 18 are least likely to be fatal. The likelihood of fatality seemingly increases with each age band of the perpetrator
+
+**Conclusions**
+
+From the data and visualizations above, there appear to be clear meaningful differences in the quantities of perpetrators and victims of different ages, races, and sexes. With regards to characteristics of perpetrators, shootings with perps of a higher age group appear to be more likely to be fatal.
+
+Now that we have analyzed the shootings by the characteristics of the victim and perpetrators, it would be interesting to go back and analyze some of the columns in the original data frame, such as borough to see if they illustrate anything interesting about the data as well.
+
+**Bias**
+
+Policing and gun control are hot topics within America and New York, so it is possible that data collection could be skewed in some regards. Because of this, it is important to not make assumptions beyond what is present in the data, and also validate any conclusions via future study.
+
+Additionally, my own biases must be kept in check. I myself have a political point of view, and I made an effort to minimize it during this study. That said, I believe I remained objective.
+
